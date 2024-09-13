@@ -100,7 +100,8 @@ class Telegram:
             logging.info("Ratelimited for \x1b[38;5;147m%s\x1b[0ms." % (e.seconds))
             await asyncio.sleep(int(e.seconds))
         except Exception as e:
-            return e
+            logging.error(f"Failed to send message to \x1b[38;5;147m{group.title}\x1b[0m: {e}")
+            return False
 
     async def join_groups(self):
         seen = []
@@ -139,8 +140,13 @@ class Telegram:
                 for group_id in groups_to_process:
                     group = next((g for g in all_groups if g.id == group_id), None)
                     if group is None:
-                        continue
-                    
+                        try:
+                            group = await self.client.get_entity(group_id)
+                            all_groups.append(group)
+                        except Exception as e:
+                            logging.error(f"Failed to get group entity for ID {group_id}: {e}")
+                            continue
+
                     try:
                         last_message = (await self.client.get_messages(group, limit=1))[0]
                         if last_message.from_id.user_id == self.user.id:
@@ -207,15 +213,4 @@ class Telegram:
         
         logging.info("Selected \x1b[38;5;147m%s\x1b[0m as your message to forward." % (self.forward_message.text[:50]))        
         groups = await self.get_groups()
-        logging.info("Sending out your message to \x1b[38;5;147m%s\x1b[0m groups!" % (len(groups)))
-        
-        print()
-        await self.cycle()
-        
-if __name__ == "__main__":
-    client = Telegram()
-    print("Starting client...")
-    try:
-        asyncio.run(client.start())
-    except Exception as e:
-        print(f"Error occurred: {e}")
+        logging.info("Sending out your message to \x1b[38;5;147m%s\x1b
