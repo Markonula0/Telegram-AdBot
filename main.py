@@ -4,7 +4,7 @@ import logging
 import asyncio
 
 from telethon import TelegramClient
-from telethon import functions, types, errors, events
+from telethon import functions, types, errors
 
 from tabulate import tabulate
 
@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logging.getLogger("telethon").setLevel(level=logging.CRITICAL)
 
-class Telegram():
+class Telegram:
 
     def __init__(self):
         os.system("cls && title ")
@@ -64,9 +64,7 @@ class Telegram():
     async def get_groups(self):
         reply = []
 
-        results = await self.client.get_dialogs(
-            limit=None
-        )
+        results = await self.client.get_dialogs(limit=None)
 
         for dialog in results:
             if dialog.is_group and dialog.is_channel:
@@ -88,7 +86,8 @@ class Telegram():
         results = []
         
         async for message in self.client.iter_messages(self.promotions_chat):
-            if message.text != None: results.append(message)
+            if message.text is not None:
+                results.append(message)
         
         return results
 
@@ -126,15 +125,39 @@ class Telegram():
                 
             await asyncio.sleep(self.config["sending"]["loop_interval"])
 
+    async def join_groups(self):
+        seen = []
+
+        for invite in self.groups:
+            if invite in seen: continue
+            seen.append(invite)
+            
+            while True:
+                try:
+                    if "t.me" in invite: code = invite.split("t.me/")[1]
+                    else: code = invite
+                    
+                    await self.client(functions.channels.JoinChannelRequest(code))
+                    logging.info("Successfully joined \x1b[38;5;147m%s\x1b[0m!" % (invite))
+                    break
+                except errors.FloodWaitError as e:
+                    logging.info("Ratelimited for \x1b[38;5;147m%s\x1b[0ms." % (e.seconds))
+                    await asyncio.sleep(int(e.seconds))
+                except Exception:
+                    logging.info("Failed to join \x1b[38;5;147m%s\x1b[0m." % (invite))
+                    break
+            
+            await asyncio.sleep(0.8)
+
     async def start(self):
         await self.connect()
         
         print()
-        
-        # Removed the join_groups prompt and call
-        # await self.join_groups()
+        # Automatically join groups
+        await self.join_groups()
         print()
         
+        # Get all chats and select the group and message
         groups = await self.get_all_chats()
         self.tablize(
             headers=["ID", "Name"],
@@ -142,23 +165,20 @@ class Telegram():
         )
         print()
         
-        logging.info("Selected channel ID: 2218358133 and message ID: 5")
-        
-        # Directly set the channel and message IDs
-        channel_id = 2218358133
-        message_id = 5
-        
+        logging.info("Selected chat ID: 2218358133 and message ID: 5")
+
+        # Find the chat with ID 2218358133
         for group in groups:
-            if group.id == channel_id:
+            if group.id == 2218358133:
                 self.promotions_chat = group
-                
-        if self.promotions_chat is None:
-            return logging.info("Invalid chat ID selected.")
+        
+        if self.promotions_chat is None: return logging.info("Invalid chat ID selected.")
         print()
         
         logging.info("Selected \x1b[38;5;147m%s\x1b[0m as your promotions chat." % (self.promotions_chat.title))
         print()
         
+        # Get messages from the promotions chat
         messages = await self.get_chat_messages()
         self.tablize(
             headers=["ID", "Content"],
@@ -166,12 +186,12 @@ class Telegram():
         )
         print()
         
+        # Find the message with ID 5
         for message in messages:
-            if message.id == message_id:
+            if message.id == 5:
                 self.forward_message = message
-                
-        if self.forward_message is None:
-            return logging.info("Invalid message ID selected.")
+        
+        if self.forward_message is None: return logging.info("Invalid message ID selected.")
         print()
         
         logging.info("Selected \x1b[38;5;147m%s\x1b[0m as your message to forward." % (self.forward_message.text[:50]))        
