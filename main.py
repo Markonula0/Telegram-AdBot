@@ -206,5 +206,10 @@ class Telegram():
 		await self.cycle()
 		
 if __name__ == "__main__":
-	client = Telegram()
-	asyncio.get_event_loop().run_until_complete(client.start())
+    client = Telegram()
+    print("Starting client...")
+    try:
+        asyncio.run(client.start())
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
