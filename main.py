@@ -213,4 +213,12 @@ class Telegram:
         
         logging.info("Selected \x1b[38;5;147m%s\x1b[0m as your message to forward." % (self.forward_message.text[:50]))        
         groups = await self.get_groups()
-        logging.info("Sending out your message to \x1b[38;5;147m%s\x1b
+        logging.info("Sending out your message to \x1b[38;5;147m%s\x1b[0m groups!" % (len(groups)))
+        
+        print()
+        await self.cycle()
+
+# Run the script
+if __name__ == "__main__":
+    telegram = Telegram()
+    asyncio.run(telegram.start())
