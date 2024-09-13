@@ -38,6 +38,7 @@ class Telegram:
         
         self.promotions_chat = None
         self.forward_message = None
+        self.joined_groups = set()  # To track joined groups
         
     def tablize(self, headers: list, data: list):
         print(
@@ -101,30 +102,6 @@ class Telegram:
         except Exception as e:
             return e
 
-    async def cycle(self):
-        while True:
-            try:
-                groups = await self.get_groups()
-                for group in groups:
-                    try:
-                        last_message = (await self.client.get_messages(group, limit=1))[0]
-                        if last_message.from_id.user_id == self.user.id:
-                            logging.info("Skipped \x1b[38;5;147m%s\x1b[0m as our message is the latest." % (group.title))
-                            continue
-                        
-                        if await self.clean_send(group):
-                            logging.info("Forwarded your message to \x1b[38;5;147m%s\x1b[0m!" % (group.title))
-                        else:
-                            logging.info("Failed to forward your message to \x1b[38;5;147m%s\x1b[0m!" % (group.title))
-                        
-                        await asyncio.sleep(self.config["sending"]["send_interval"])
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-                
-            await asyncio.sleep(self.config["sending"]["loop_interval"])
-
     async def join_groups(self):
         seen = []
 
@@ -139,6 +116,9 @@ class Telegram:
                     
                     await self.client(functions.channels.JoinChannelRequest(code))
                     logging.info("Successfully joined \x1b[38;5;147m%s\x1b[0m!" % (invite))
+                    # Track newly joined group
+                    joined_group = await self.client.get_entity(code)
+                    self.joined_groups.add(joined_group.id)
                     break
                 except errors.FloodWaitError as e:
                     logging.info("Ratelimited for \x1b[38;5;147m%s\x1b[0ms." % (e.seconds))
@@ -148,6 +128,37 @@ class Telegram:
                     break
             
             await asyncio.sleep(0.8)
+
+    async def cycle(self):
+        while True:
+            try:
+                all_groups = await self.get_groups()
+                all_group_ids = {group.id for group in all_groups}
+                groups_to_process = all_group_ids.union(self.joined_groups)
+
+                for group_id in groups_to_process:
+                    group = next((g for g in all_groups if g.id == group_id), None)
+                    if group is None:
+                        continue
+                    
+                    try:
+                        last_message = (await self.client.get_messages(group, limit=1))[0]
+                        if last_message.from_id.user_id == self.user.id:
+                            logging.info("Skipped \x1b[38;5;147m%s\x1b[0m as our message is the latest." % (group.title))
+                            continue
+                        
+                        if await self.clean_send(group):
+                            logging.info("Forwarded your message to \x1b[38;5;147m%s\x1b[0m!" % (group.title))
+                        else:
+                            logging.info("Failed to forward your message to \x1b[38;5;147m%s\x1b[0m!" % (group.title))
+                        
+                        await asyncio.sleep(self.config["sending"]["send_interval"])
+                    except Exception as e:
+                        logging.error(f"Error processing group \x1b[38;5;147m{group.title}\x1b[0m: {e}")
+            except Exception as e:
+                logging.error(f"Error in cycle: {e}")
+                
+            await asyncio.sleep(self.config["sending"]["loop_interval"])
 
     async def start(self):
         await self.connect()
